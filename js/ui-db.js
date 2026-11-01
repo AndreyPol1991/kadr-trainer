@@ -9,7 +9,7 @@
    - ui.crowRead(el, cfg)   — связь «вороньими лапками» и её чтение словами в обе стороны
    - ui.indexViz(el, cfg)   — полный просмотр против поиска по индексу: сколько строк прочитано
    - ui.stateViz(el, cfg)   — статусная модель: щёлкаете переходы, растёт таблица истории
-   - ui.depViz(cfg)         — функциональные зависимости столбцов стрелками (для нормальных форм)
+   - ui.depViz(cfg)         — функциональные зависимости по одной: «X определяет Y», вердикт и повторы в данных
    - ui.truth3(el)          — трёхзначная логика NULL
    - ui.resDiff(mine, ref)  — результат запроса ученика рядом с эталоном */
 'use strict';
@@ -66,6 +66,38 @@
   .iv-c.mid{background:var(--info-soft);border-color:var(--info);color:var(--text)}
   .iv-c.off{opacity:.25}
   .sv-hist{max-height:200px;overflow:auto}
+  .tx-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px}
+  .tx-cards div{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--surface-2);font-size:12.5px;line-height:1.4;color:var(--text-2)}
+  .tx-cards b{display:block;font:700 13px var(--f-mono);color:var(--accent);margin-bottom:2px}
+  .tx-steps{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .tx-steps button{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);opacity:.6;font-size:13px}
+  .tx-steps button:focus-visible{outline:2px solid var(--accent)}
+  .tx-steps button.past{opacity:1}.tx-steps button.on{opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+  .tx-steps button.bad.past{border-left:4px solid var(--bad)}.tx-steps button.ok.past{border-left:4px solid var(--ok)}
+  .tx-steps .n{font:700 12px var(--f-mono);color:var(--text-muted)}.tx-steps code{display:block;font-size:11.5px;color:var(--text-2);margin-top:1px}.tx-steps small{color:var(--text-muted);font-size:11px}
+  .tx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+  .tx-pane{display:grid;gap:8px;align-content:start;padding:10px;border:1px dashed var(--border-strong);border-radius:12px;min-width:0}
+  .tx-seats{display:flex;gap:5px;flex-wrap:wrap}
+  .tx-seat{font:600 11px/26px var(--f-mono);min-width:40px;text-align:center;border-radius:7px 7px 3px 3px;border:1px solid var(--border-strong);background:var(--surface-2)}
+  .tx-seat.sold{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+  .tx-seat.held{background:var(--warn-soft);border:1.5px dashed var(--warn);color:var(--warn)}
+  .dv-t tr.tx-p td{background:var(--warn-soft);border-top:1px dashed var(--warn);border-bottom:1px dashed var(--warn)}
+  .dp{display:grid;gap:10px;min-width:0}
+  .dp-keyline{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .dp-list{display:grid;gap:6px}
+  .dp-dep{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;text-align:left;border:1px solid var(--border);border-left:4px solid var(--ok);border-radius:10px;padding:8px 12px;background:var(--surface-2);color:var(--text);font:13px/1.35 var(--f-body);cursor:pointer}
+  .dp-dep.bad{border-left-color:var(--bad)}
+  .dp-dep[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-color:var(--accent);border-left-width:4px}
+  .dp-dep .dp-side{font-family:var(--f-mono);font-size:12.5px}
+  .dp-dep .dp-arr{color:var(--text-muted);font-size:12px}.dp-dep .dp-arr::after{content:' →'}
+  .dp-dep .dp-badge{margin-left:auto;font-size:12px;font-weight:600;color:var(--ok)}.dp-dep.bad .dp-badge{color:var(--bad)}
+  .dp-cols{display:flex;flex-wrap:wrap;gap:6px}
+  .dp-chip{display:inline-grid;justify-items:center;gap:1px;padding:5px 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);font:600 12px var(--f-mono);color:var(--text)}
+  .dp-chip small{font:500 10px var(--f-body);color:var(--text-muted)}
+  .dp-chip.key{text-decoration:underline;text-underline-offset:3px;border-color:var(--accent)}
+  .dp-chip.from{background:var(--info-soft);border-color:var(--info);box-shadow:0 0 0 2px color-mix(in srgb,var(--info) 30%,transparent)}
+  .dp-chip.to.bad{background:var(--bad-soft);border-color:var(--bad)}.dp-chip.to.ok{background:var(--ok-soft);border-color:var(--ok)}
+  .dp-chip.dim{opacity:.45}
   .t3 select{min-width:96px}
   .t3 .v-t{color:var(--ok);font-weight:700}.t3 .v-f{color:var(--bad);font-weight:700}.t3 .v-n{color:var(--warn);font-weight:700}
   </style>`);
@@ -377,21 +409,96 @@
   };
 
   // ---------- функциональные зависимости ----------
-  // cfg: { cols:[{n, key}], deps:[{from:[i], to:[j], bad, t}], title }
+  // Не стрелки, а разбор по одной зависимости: кнопка «X → Y» с вердиктом, подсветка столбцов «определяет / зависит»
+  // и — если даны строки — таблица, где видно, какие значения из-за этой зависимости повторяются.
+  // Возвращает HTML (годится и для картинки к ответу); нажатия обрабатывает общий обработчик ниже.
+  // cfg: { cols:[{n, key}], deps:[{from:[i], to:[j], bad, t, why}], rows:[[…]], title }
+  const DEPS = new Map();
+  const depHTML = (id, sel) => {
+    const cfg = DEPS.get(id), d = cfg.deps[sel], tone = d.bad ? 'bad' : 'ok';
+    const name = i => cfg.cols[i].n, keys = cfg.cols.map((c, i) => c.key ? i : -1).filter(i => i >= 0);
+    const role = i => d.from.includes(i) ? 'from' : d.to.includes(i) ? 'to' : '';
+    // строки с одинаковым определяющим значением: из-за них зависимое значение повторяется
+    let groups = [], rowCls = {}, cells = {};
+    if (cfg.rows) {
+      const by = new Map();
+      cfg.rows.forEach((r, ri) => { const k = JSON.stringify(d.from.map(i => r[i])); if (!by.has(k)) by.set(k, []); by.get(k).push(ri); });
+      groups = [...by.values()].filter(g => g.length > 1);
+      cfg.rows.forEach((r, ri) => { d.from.forEach(i => { cells[ri + ':' + i] = 'info'; }); d.to.forEach(i => { cells[ri + ':' + i] = d.bad && groups.some(g => g.includes(ri)) ? 'bad' : tone === 'ok' ? 'ok' : ''; }); });
+      groups.forEach((g, gi) => g.forEach(ri => { rowCls[ri] = 'g' + (gi % 6); }));
+    }
+    const big = groups.length ? groups.reduce((a, g) => g.length > a.length ? g : a, groups[0]) : null;
+    const rep = big && d.bad ? `В примере «${esc(d.from.map(i => cfg.rows[big[0]][i]).join(' + '))}» встречается в ${big.length} строках — и ${esc(d.to.map(name).join(', '))} ${d.to.length > 1 ? 'записаны' : 'записан'} ${big.length} раза. Поменять — значит править все эти строки.` : '';
+    const verdict = d.bad ? (d.t || 'не от ключа') : (d.t || 'от всего ключа — так и надо');
+    return `<div class="dp-keyline"><span class="dv-k">Ключ строки</span>${keys.map(i => `<span class="dp-chip key">${esc(name(i))}</span>`).join('<span class="dim">+</span>')}</div>
+      <div class="dp-list" role="group" aria-label="Зависимости">${cfg.deps.map((x, k) => `<button type="button" class="dp-dep ${x.bad ? 'bad' : 'ok'}" data-depsel="${k}" aria-pressed="${k === sel}"><span class="dp-side">${x.from.map(i => `<b>${esc(name(i))}</b>`).join(' + ')}</span><span class="dp-arr">определяет</span><span class="dp-side">${x.to.map(i => esc(name(i))).join(', ')}</span><span class="dp-badge">${x.bad ? '✗ ' : '✓ '}${esc(x.bad ? (x.t || 'не от ключа') : (x.t || 'от ключа'))}</span></button>`).join('')}</div>
+      <div class="dp-cols">${cfg.cols.map((c, i) => `<span class="dp-chip ${c.key ? 'key' : ''} ${role(i)} ${role(i) === 'to' ? tone : ''} ${role(i) ? '' : 'dim'}">${esc(c.n)}${role(i) === 'from' ? '<small>определяет</small>' : role(i) === 'to' ? '<small>зависит</small>' : ''}</span>`).join('')}</div>
+      ${cfg.rows ? ui.dbt({ name: cfg.title || 'Пример строк', cols: cfg.cols.map(c => c.n), rows: cfg.rows, cells, rowCls }) : ''}
+      <div class="qp-note" style="border-left-color:var(--${tone})"><b>${esc(d.to.map(name).join(', '))} ${d.to.length > 1 ? 'зависят' : 'зависит'} от ${esc(d.from.map(name).join(' + '))}: ${esc(verdict)}.</b> ${d.why || (d.bad ? 'Этот факт описывает не строку таблицы целиком, поэтому повторяется в каждой строке с тем же значением — его выносят в отдельную таблицу.' : 'Значение описывает именно эту строку — повторов нет.')} ${rep}</div>`;
+  };
   ui.depViz = cfg => {
-    const CW = cfg.cw || 112, W = cfg.cols.length * CW + 10, TOP = 26 + cfg.deps.length * 16, H = TOP + 40;
     const id = 'dp' + (++uid);
-    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;min-width:${Math.min(W, 420)}px" role="img" aria-label="${esc(cfg.title || 'Зависимости столбцов')}"><defs><marker id="${id}-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--ok)"/></marker><marker id="${id}-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--bad)"/></marker></defs>`;
-    const cx = i => 5 + i * CW + CW / 2;
-    cfg.deps.forEach((d, k) => {
-      const lvl = TOP - 10 - k * 16, col = d.bad ? 'bad' : 'ok';
-      const xs = d.from.map(cx), x0 = Math.min(...xs), x1 = Math.max(...xs);
-      s += xs.map(x => `<line x1="${x}" y1="${TOP}" x2="${x}" y2="${lvl}" style="stroke:var(--${col});stroke-width:1.5"/>`).join('');
-      d.to.forEach(j => { s += `<path d="M${x0} ${lvl} H${Math.max(x1, cx(j))} " style="stroke:var(--${col});stroke-width:1.5;fill:none"/><path d="M${cx(j)} ${lvl} V${TOP - 2}" style="stroke:var(--${col});stroke-width:1.5;fill:none" marker-end="url(#${id}-${col})"/>`; if (x0 > cx(j)) s += `<path d="M${cx(j)} ${lvl} H${x0}" style="stroke:var(--${col});stroke-width:1.5"/>`; });
-      if (d.t) s += `<text x="${Math.max(...xs, ...d.to.map(cx)) + 6}" y="${lvl + 4}" style="fill:var(--${col});font-size:10.5px">${esc(d.t)}</text>`;
+    DEPS.set(id, cfg);
+    const sel = Math.max(0, cfg.deps.findIndex(d => d.bad));
+    return `<div class="dp" data-depviz="${id}">${depHTML(id, sel)}</div>`;
+  };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-depsel]'); if (!b) return;
+    const box = b.closest('[data-depviz]'); if (!box || !DEPS.has(box.dataset.depviz)) return;
+    box.innerHTML = depHTML(box.dataset.depviz, +b.dataset.depsel);
+  });
+
+  // ---------- транзакция: что лежит в базе после каждого шага ----------
+  // Слева — что видит само приложение (черновик транзакции жёлтым), справа — что в ту же секунду видит кассир.
+  // cfg: { scenarios:[{ v, t, steps:[{ t, sql, who:'app'|'bank', kind, op(S), note }] }], start, onEnd(v) }
+  // op меняет состояние S: S.begin(), S.ins(table, row), S.set(table, id, row), S.rollback(), S.commit()
+  const TX_COLS = { orders: ['id', 'status'], ticket: ['id', 'order_id', 'seat'], payment: ['order_id', 'amount', 'status'] };
+  const txState = () => {
+    const S = { tx: false, last: null, rows: { orders: [], ticket: [], payment: [] } };
+    S.begin = () => { S.tx = true; S.last = 'begin'; };
+    S.ins = (t, row) => { S.rows[t].push({ d: row, p: S.tx }); };
+    S.set = (t, id, row) => { const r = S.rows[t].find(x => x.d[0] === id); if (r) { r.old = r.p ? r.old : r.d; r.d = row; r.p = S.tx; } };
+    S.rollback = () => { Object.keys(S.rows).forEach(t => { S.rows[t] = S.rows[t].filter(r => !r.p || r.old).map(r => r.p ? { d: r.old, p: false } : r); }); S.tx = false; S.last = 'rollback'; };
+    S.commit = () => { Object.keys(S.rows).forEach(t => S.rows[t].forEach(r => { r.p = false; delete r.old; })); S.tx = false; S.last = 'commit'; };
+    return S;
+  };
+  ui.txViz = (el, cfg) => {
+    let v = cfg.start || cfg.scenarios[0].v, k = 0, timer = null;
+    const sc = () => cfg.scenarios.find(x => x.v === v);
+    const stateAt = n => { const S = txState(); sc().steps.slice(0, n).forEach(st => { S.last = null; st.op && st.op(S); }); return S; };
+    const seats = (S, mine) => { const sold = new Set(), held = new Set(); S.rows.ticket.forEach(r => { if (!r.p) sold.add(r.d[2]); else if (mine) held.add(r.d[2]); }); return `<div class="tx-seats">${[410, 411, 412, 413, 414, 415].map(n => `<span class="tx-seat ${sold.has(n) ? 'sold' : held.has(n) ? 'held' : ''}" title="место ${n}">${n}</span>`).join('')}</div>`; };
+    // приложение видит свои черновые строки; кассир — только сохранённое (для изменённой в черновике строки — старую версию)
+    const tables = (S, mine) => Object.keys(TX_COLS).map(t => {
+      const list = mine ? S.rows[t] : S.rows[t].map(r => !r.p ? r : r.old ? { d: r.old, p: false } : null).filter(Boolean);
+      return ui.dbt({ name: t, cols: TX_COLS[t], rows: list.map(r => r.d), rowCls: (r, i) => list[i].p ? 'tx-p' : '' });
+    }).join('');
+    function draw() {
+      const steps = sc().steps, S = stateAt(k), cur = steps[k - 1];
+      const status = S.last === 'rollback' ? ['ok', 'ROLLBACK: черновик выброшен целиком — в базе ничего не изменилось'] : S.last === 'commit' ? ['ok', 'COMMIT: черновик сохранён — теперь это видят все и навсегда'] : S.tx ? ['warn', 'Транзакция открыта: всё, что меняем, — черновик. Его видит только это приложение'] : v === 'no' && k > 0 ? ['bad', 'Транзакции нет: каждая команда сохраняется сразу и навсегда'] : ['', 'Начало: в базе ничего нет про этот заказ'];
+      el.innerHTML = `<div class="stack">
+        <div class="tx-cards"><div><b>Транзакция</b>несколько изменений, которые база выполняет как одно: либо сохраняются все, либо ни одного</div><div><b>BEGIN</b>«начинаю черновик»: дальше изменения видны только мне, остальные видят базу как раньше</div><div><b>COMMIT</b>«сохранить черновик»: все изменения разом становятся настоящими и видны всем</div><div><b>ROLLBACK</b>«выбросить черновик»: всё, что сделано после BEGIN, отменяется, будто ничего не было</div></div>
+        ${ui.seg('txs', cfg.scenarios.map(x => ({ v: x.v, t: x.t })), v)}
+        <ol class="tx-steps">${steps.map((st, i) => `<li><button type="button" data-txk="${i + 1}" class="${i < k ? 'past' : ''} ${i === k - 1 ? 'on' : ''} ${st.kind || ''}"><span class="n">${i + 1}</span><span>${esc(st.t)}${st.sql ? `<code>${esc(st.sql)}</code>` : ''}</span><small>${st.who === 'bank' ? 'банк' : 'приложение → база'}</small></button></li>`).join('')}</ol>
+        <div class="row"><button type="button" class="btn sm" data-txa="prev" ${k === 0 ? 'disabled' : ''}>← Шаг</button><button type="button" class="btn sm primary" data-txa="next" ${k >= steps.length ? 'disabled' : ''}>Шаг →</button><button type="button" class="btn sm" data-txa="play">${timer ? '⏸ Пауза' : '▶ Проиграть всё'}</button><button type="button" class="btn sm ghost" data-txa="reset" ${k === 0 ? 'disabled' : ''}>⟲ Сначала</button><span class="small dim">шаг ${k} из ${steps.length}</span></div>
+        <div class="note ${status[0]}"><div>${status[1]}</div></div>
+        <div class="qp-note">${cur ? cur.note : 'Нажимайте «Шаг →» и смотрите, что после каждой команды лежит в базе — у приложения и у кассира в соседнем окне.'}</div>
+        <div class="tx-two"><div class="tx-pane"><div class="dv-k">Что видит это приложение</div>${seats(S, true)}${tables(S, true)}</div><div class="tx-pane"><div class="dv-k">Что в ту же секунду видит кассир</div>${seats(S, false)}${tables(S, false)}</div></div>
+        ${ui.legend([['var(--warn-soft)', 'черновик транзакции — ещё не сохранён'], ['var(--bad-soft)', 'место продано (сохранено)'], ['var(--warn)', 'место держит черновик']])}</div>`;
+    }
+    function stop() { clearInterval(timer); timer = null; }
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-txk],[data-txa]'); if (!b || !el.contains(b)) return;
+      const n = sc().steps.length;
+      if (b.dataset.txk) { stop(); k = +b.dataset.txk; }
+      else if (b.dataset.txa === 'prev') { stop(); k = Math.max(0, k - 1); }
+      else if (b.dataset.txa === 'next') { stop(); k = Math.min(n, k + 1); }
+      else if (b.dataset.txa === 'reset') { stop(); k = 0; }
+      else if (b.dataset.txa === 'play') { if (timer) stop(); else { k = 0; timer = setInterval(() => { if (k >= n) { stop(); draw(); return; } k++; draw(); if (k >= n) { stop(); draw(); cfg.onEnd && cfg.onEnd(v); } }, 1500); } }
+      draw();
+      if (k >= n) cfg.onEnd && cfg.onEnd(v);
     });
-    cfg.cols.forEach((c, i) => { s += `<rect x="${5 + i * CW + 3}" y="${TOP}" width="${CW - 6}" height="30" rx="6" style="fill:${c.key ? 'var(--accent-soft)' : 'var(--surface-2)'};stroke:${c.key ? 'var(--accent)' : 'var(--border-strong)'}"/><text x="${cx(i)}" y="${TOP + 19}" text-anchor="middle" style="fill:var(--text);font:${c.key ? 700 : 500} 11.5px var(--f-mono)">${esc(c.n)}</text>`; });
-    return `<div style="overflow:auto">${s}</svg></div>`;
+    ui.onSeg(el, (nm, x) => { if (nm !== 'txs') return; stop(); v = x; k = 0; draw(); });
+    draw();
   };
 
   // ---------- NULL: трёхзначная логика ----------

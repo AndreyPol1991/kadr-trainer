@@ -37,6 +37,9 @@
     return `<div class="brief">${row('Ситуация', o.situation)}${row('Что сделать', o.todo)}${row(o.lookTitle || 'Как это работает', o.look)}</div>`;
   };
 
+  // Дополнительные строки описания задания (контекст, критерий зачёта, мини-теория) в том же виде, что ui.brief
+  ui.briefRows = rows => `<div class="brief">${rows.filter(r => r[1]).map(([k, v]) => `<div class="b-row"><span class="b-k">${k}</span><div class="b-v">${Array.isArray(v) ? `<ul>${v.map(x => `<li>${x}</li>`).join('')}</ul>` : v}</div></div>`).join('')}</div>`;
+
   ui.note = (kind, title, html) => `<div class="note ${kind || ''}">${title ? `<div class="ttl">${esc(title)}</div>` : ''}<div>${html}</div></div>`;
 
   ui.say = (pid, html, opts) => {

@@ -205,7 +205,7 @@
     card.innerHTML = `<header><span class="n">${label}</span><h2>${esc(isTh ? t.title.replace(/^Как это работает:\s*/, 'Как это работает: ') : t.title)}</h2>${isTh ? (ts.done ? ui.status('прочитано', 'ok') : '') : stTag}</header>
       ${locked ? '' : `<div class="tbody">
         ${t.simple ? (isTh ? ui.simple(t.simple) : `<details class="more"><summary>Вспомнить теорию к заданию</summary><div>${ui.simple(t.simple)}</div></details>`) : ''}
-        ${t.lead ? `<div class="lead">${t.lead}</div>` : ''}
+        ${(() => { const B = !isTh && TR.BRIEFS && TR.BRIEFS[def.id + '.' + t.id]; return `${B && B.context ? `<div class="lead">${ui.briefRows([['Контекст', B.context]])}</div>` : ''}${t.lead ? `<div class="lead">${t.lead}</div>` : ''}${B && (B.criteria || B.mini) ? `<div class="lead">${ui.briefRows([['Критерий зачёта', B.criteria], ['Мини-теория', B.mini]])}</div>` : ''}`; })()}
         <div data-mount></div>
         <div class="feedback" data-fb></div>
         <div data-ref></div>
